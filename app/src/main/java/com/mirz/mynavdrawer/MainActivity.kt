@@ -1,6 +1,8 @@
 package com.mirz.mynavdrawer
 
+import android.content.Context
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
@@ -25,6 +27,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.mirz.mynavdrawer.ui.theme.MyNavDrawerTheme
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -34,8 +37,7 @@ class MainActivity : ComponentActivity() {
             MyNavDrawerTheme {
                 // A surface container using the 'background' color from the theme
                 Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colors.background
+                    modifier = Modifier.fillMaxSize(), color = MaterialTheme.colors.background
                 ) {
                     MyNavDrawerApp()
                 }
@@ -44,54 +46,74 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+class MyNavDrawerState(
+    val scaffoldState: ScaffoldState,
+    private val scope: CoroutineScope,
+    private val context: Context
+) {
+    fun onMenuClick() {
+        scope.launch {
+            scaffoldState.drawerState.open()
+        }
+    }
+
+    fun onItemSelected(title: String) {
+        scope.launch {
+            scaffoldState.drawerState.close()
+            val snackbarResult = scaffoldState.snackbarHostState.showSnackbar(
+                message = context.resources.getString(R.string.coming_soon, title),
+                actionLabel = context.resources.getString(R.string.subscribe_question)
+            )
+            if (snackbarResult == SnackbarResult.ActionPerformed) {
+                Toast.makeText(
+                    context,
+                    context.resources.getString(R.string.subscribed_info),
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+
+    fun onBackPress() {
+        if (scaffoldState.drawerState.isOpen) {
+            scope.launch {
+                scaffoldState.drawerState.close()
+            }
+        }
+    }
+}
+
+@Composable
+fun rememberMyNavDrawerState(
+    scaffoldState: ScaffoldState = rememberScaffoldState(),
+    coroutinesScope: CoroutineScope = rememberCoroutineScope(),
+    context: Context = LocalContext.current
+): MyNavDrawerState = remember(scaffoldState, coroutinesScope, context) {
+    MyNavDrawerState(scaffoldState, coroutinesScope, context)
+}
+
 @Composable
 fun MyNavDrawerApp() {
-    val scaffoldState = rememberScaffoldState()
-    val scope = rememberCoroutineScope()
-    val context = LocalContext.current
+    val appState = rememberMyNavDrawerState()
 
     Scaffold(
-        scaffoldState = scaffoldState,
+        scaffoldState = appState.scaffoldState,
         topBar = {
-            MyTopBar(
-                onMenuClick = {
-                    scope.launch {
-                        scaffoldState.drawerState.open()
-                    }
-                }
-            )
+            MyTopBar(onMenuClick = appState::onMenuClick)
         },
         drawerContent = {
             MyDrawerContent(
-                onItemSelected = {
-                    scope.launch {
-                        scaffoldState.drawerState.close()
-                        scaffoldState.snackbarHostState.showSnackbar(
-                            message = context.resources.getString(
-                                R.string.coming_soon,
-                                it
-                            ),
-                            actionLabel = context.resources.getString(
-                                R.string.subscribe_question
-                            )
-                        )
-                    }
-                },
-                onBackPress = {
-                    scope.launch {
-                        scaffoldState.drawerState.close()
-                    }
-                },
+                onItemSelected = appState::onItemSelected,
+                onBackPress = appState::onBackPress,
             )
         },
 
-        drawerGesturesEnabled = scaffoldState.drawerState.isOpen,
+        drawerGesturesEnabled = appState.scaffoldState.drawerState.isOpen,
     ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(it),
-            contentAlignment = Alignment.Center
+                .padding(it), contentAlignment = Alignment.Center
         ) {
             Text(stringResource(R.string.hello_world))
         }
@@ -106,16 +128,13 @@ fun MyDrawerContent(
 ) {
     val items = listOf(
         MenuItem(
-            title = stringResource(R.string.home),
-            icon = Icons.Default.Home
+            title = stringResource(R.string.home), icon = Icons.Default.Home
         ),
         MenuItem(
-            title = stringResource(R.string.favourite),
-            icon = Icons.Default.Favorite
+            title = stringResource(R.string.favourite), icon = Icons.Default.Favorite
         ),
         MenuItem(
-            title = stringResource(R.string.profile),
-            icon = Icons.Default.AccountCircle
+            title = stringResource(R.string.profile), icon = Icons.Default.AccountCircle
         ),
     )
     Column(modifier.fillMaxSize()) {
@@ -126,17 +145,13 @@ fun MyDrawerContent(
                 .background(MaterialTheme.colors.primary)
         )
         for (item in items) {
-            Row(
-                modifier = Modifier
-                    .clickable { onItemSelected(item.title) }
-                    .padding(vertical = 12.dp, horizontal = 16.dp)
-                    .fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Row(modifier = Modifier
+                .clickable { onItemSelected(item.title) }
+                .padding(vertical = 12.dp, horizontal = 16.dp)
+                .fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    imageVector = item.icon,
-                    contentDescription = item.title,
-                    tint = Color.DarkGray
+                    imageVector = item.icon, contentDescription = item.title, tint = Color.DarkGray
                 )
                 Spacer(modifier = Modifier.width(32.dp))
                 Text(text = item.title, style = MaterialTheme.typography.subtitle2)
